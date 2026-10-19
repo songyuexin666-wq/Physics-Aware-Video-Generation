@@ -1,348 +1,71 @@
-# Physics-Aware Video Generation
+# PCCA — Physics-Conditioned Counterfactual Video Repair
 
-<p align="center">
-  <b>State-Conditioned Control and Localized Regeneration for Physically Consistent Video Generation</b>
-</p>
+**Research prototype | Event-grounded counterfactual dynamics + persistent Wan Flow state anchoring**
 
-This repository documents an ongoing research project on **physics-aware controllable video generation**. The central goal is to move beyond prompt-only generation by introducing explicit physical state representations and intervention signals that can guide a frozen video diffusion model toward more physically consistent transitions.
+> **Status (2026-10-18):** The physics-prediction-to-video-execution mechanism has positive *metadata-assisted* research evidence. The production RigidBench/Wan2.2 code, full dataset, and checkpoints have **not yet** been publicly released. The earlier PCCA learned-adapter handoff did not pass. This README is a research status and reproducibility index, not a claim that the public repository alone reproduces the GPU study.
 
-> **Current research stage:** latent-level control consistency and intervention-direction learning have been implemented and audited. Stable video-level bidirectional intervention mapping and localized regeneration are the next major milestones.
+## Problem
 
----
+Given a video containing a local physical failure and a physical intervention, predict a physically consistent alternative trajectory and regenerate **only the causally affected spacetime region**, preserving background, first frame, identity and unaffected interactions.
 
-## Motivation
-
-Long-form and action-conditioned video generation often suffers from **open-loop drift**:
-
-- object motion gradually deviates from the intended physical evolution;
-- control directions become entangled across different actions;
-- global regeneration may alter visually unrelated regions;
-- physically implausible transitions accumulate over time.
-
-Instead of relying only on text prompts, this project explicitly models:
-
-```text
-S_t + A_t → S_{t+1}
+```
+source video + permitted intervention
+  └─ source-grounded state / contact geometry
+       └─ K3-SG event-based counterfactual rollout
+            └─ predicted state / proxy video / causal support
+                 └─ P-CSA persistent state anchoring in Wan Flow
+                      └─ R1 reference outside causal support
+                           └─ repaired local physical video
 ```
 
-where:
+## Current evidence: four held-out bouncing cases
 
-- `S_t` is the current physical state,
-- `A_t` is an intervention or action,
-- `S_{t+1}` is the desired next state.
+Four distinct cases, seeds 42/43/44, three conditions, 36 runs without execution errors were reported in the latest internal validation.
 
-The long-term objective is to use these states to guide **localized, causally targeted video regeneration**.
+| Paired P-CSA advantage over old D1 | Mean direction | Case means |
+| --- | ---: | --- |
+| Physics recovery | **+0.7782** | 4/4 improved |
+| Trajectory RMSE improvement | +0.2300 | 4/4 |
+| Velocity RMSE improvement | +0.2455 | 4/4 |
+| Acceleration RMSE improvement | +0.2964 | 4/4 |
+| Target mask IoU | **+0.4713** | 4/4 |
+| Canonical shape IoU | +0.1429 | 4/4 |
+| Target appearance cosine | +0.0457 | 4/4 |
+| Background MAE | **0.000422 lower** | 4/4 |
 
----
+**Critical limitations:** Only **four independent physical cases**; multiple generation seeds are nested repeats. All four positive directions imply a two-sided exact sign-test p=0.125, not a statistically significant generalization claim. K3-SG used permitted **source-scene geometry / physical metadata**, not source-video-only estimated geometry; its artifact was marked `research_prediction_diagnostic=true`, `deployment_eligible=false`. The numbers are **not** official VideoPhysEdit / PCVE PES.
 
-## Core Research Idea
+The earlier fixed F1 state-anchor capability ceiling achieved 15/15 success under oracle target-state conditions. It is **not** a deployable input setting. The newer evidence supports persistent denoising anchoring over simply transplanting absolute VAE latents; source/proxy initialization alone did not provide a meaningful increment under fixed anchoring.
 
-The project is built around two main ideas.
+## Research boundaries
 
-### 1. Physics-State-Guided Intervention
+- `K1-A`: linear observed-prefix baseline, window-8 selected by separate development data; it cannot model contact and bounce events.
+- `K1-B`: screen-space gravitational acceleration performed worse and is preserved as a negative ablation.
+- `K2`: multi-window observability gate found 1 SINGLE / 6 MULTI / 8 ABSTAIN in readout15; the only SINGLE still had poor long-horizon accuracy.
+- `K3-SG`: contact/support-grounded dynamics — current promising research path, but source-scene geometry provenance must be explicit.
+- `P-CSA`: fixed denoising-step state anchoring + causal support and R1 protection — positive conditional generation evidence.
+- `PCCA learned adapter`: historical mapping and video handoff gates **not passed**; do not claim the adapter is trained and validated.
 
-A structured physical state is extracted from the current video and converted into a representation that can control a frozen video generation model.
+## Next experiments
 
-The intended control path is:
+1. Freeze K3-SG, P-CSA and SAM2 evaluation revisions. Audit **absolute** success counts on all case/seed combinations, not just directional improvement.
+2. Run matched `masked_regen`, no-edit and D1 controls on the same cases and seeds. Preserve full failures.
+3. Evaluate unseen free-fall and rolling families; track second-contact event error and identity persistence.
+4. Build **video-only** support-geometry and state estimates; measure loss relative to source-metadata-assisted K3-SG.
+5. Evaluate frozen K3 outputs with frozen P-CSA on independent scene families.
+6. Port full-length output to [PCVE-RigidBench](https://github.com/Hammour-steak/PCVE-RigidBench) and run its **official** evaluator. SET-subset results cannot replace the whole 129-case benchmark.
+7. Release a **separate** CausalStateBench dataset/evaluator with Observation-Only, Predicted-State and Oracle-State tracks (never mixed into a single leaderboard).
 
-```text
-Video / Frame
-    │
-    ▼
-State Extractor
-    │
-    ▼
-Physical State S_t
-    │
-    + Action A_t
-    ▼
-State Compiler
-    │
-    ▼
-Control Semantics
-    │
-    ▼
-Hidden-State / Latent Intervention
-    │
-    ▼
-Video Diffusion Model
-```
+For experiment details see [Evidence Ledger](docs/EXPERIMENT_STATUS_20261018.md).
 
-Rather than retraining the whole generator, the current design focuses on learning a **control direction in latent / hidden-state space**.
+## Related work
 
-### 2. Locality-Aware Regeneration
+- [VideoPhysEdit](https://github.com/Hammour-steak/VideoPhysEdit) — reconstruct, simulate and edit rigid-body scenes.
+- [PCVE-RigidBench](https://github.com/Hammour-steak/PCVE-RigidBench) — paired edits, official physics/video metrics.
+- [PhysMind](https://github.com/ccyydd/PhysMind) — video to executable world reasoning.
+- [Wan-Move](https://github.com/ali-vilab/Wan-Move) — latent trajectory guidance.
+- [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) — video generation runtime.
 
-Physical interventions should affect only the causally relevant region.
+## Code & data release note
 
-The target pipeline is:
-
-```text
-State transition
-    │
-    ▼
-Causal influence estimation
-    │
-    ▼
-Affected-region mask
-    │
-    ▼
-Localized latent intervention
-    │
-    ▼
-Partial video regeneration
-```
-
-This is intended to preserve:
-
-- background consistency,
-- object identity,
-- unaffected trajectories,
-- spatial locality.
-
----
-
-## System Pipeline
-
-The current research pipeline contains four main components:
-
-### State Extractor
-
-Extracts the physical state from a frame or short video segment.
-
-Typical state variables may include:
-
-- object position,
-- velocity,
-- motion direction,
-- contact / support state,
-- relative geometry,
-- task-specific physical attributes.
-
-### Drift Checker
-
-Measures whether the generated transition deviates from the desired physical evolution.
-
-A drift-aware decision layer determines whether the current output should be:
-
-- accepted,
-- corrected,
-- regenerated.
-
-### State Compiler
-
-Converts the physical state and intervention into model-usable control information.
-
-Conceptually:
-
-```text
-physical state
-      +
-intervention
-      ↓
-continuity semantics
-      +
-control semantics
-      +
-optional keyframe constraint
-```
-
-### Pilot Runner
-
-Executes the control experiment and records intervention behavior, including control direction, no-op stability, and mapping quality.
-
----
-
-## PCCA: Physical Control Consistency Alignment
-
-The current implemented research stage focuses on learning whether different interventions correspond to distinguishable latent control directions.
-
-The expected mapping is conceptually:
-
-```text
-intervention_i
-     ↓
-control direction_i
-     ↓
-hidden-state change_i
-```
-
-A good mapping should satisfy:
-
-1. **Control-direction consistency**  
-   The intended intervention should produce a predictable latent direction.
-
-2. **No-op stability**  
-   A no-op intervention should not introduce unnecessary changes.
-
-3. **Intervention separability**  
-   Different interventions should produce distinguishable mappings.
-
-4. **Diagonal ownership**  
-   Each intervention should primarily activate its own intended direction rather than another action's direction.
-
----
-
-## Current Validation Gates
-
-The current implementation uses multiple audit gates rather than a single accuracy number.
-
-Representative checks include:
-
-| Gate | Purpose |
-| --- | --- |
-| Control-direction gate | Does an intervention move the latent representation in the intended direction? |
-| No-op gate | Does the model remain stable when no intervention is applied? |
-| Ownership / diagonal test | Does each intervention primarily control its own direction? |
-| Row margin | Is the correct mapping preferred over alternatives? |
-| Column selectivity | Is each control direction selectively associated with the intended intervention? |
-| Locality | Does the intervention avoid changing unrelated regions? |
-
-A typical ownership requirement is:
-
-```text
-diagonal fraction >= 0.8
-```
-
-Current experiments have already shown that **control direction and no-op behavior can pass while intervention ownership remains insufficient**, which motivates the next stage of research.
-
----
-
-## Current Research Status
-
-The project is currently between **latent-control validation** and **video-level intervention handoff**.
-
-### Completed / implemented
-
-- physical-state abstraction;
-- action-conditioned state transition formulation;
-- latent / hidden-state intervention path;
-- control-direction validation;
-- no-op validation;
-- ownership and selectivity diagnostics;
-- drift-aware evaluation logic;
-- synthetic physical-video data generation strategy.
-
-### In progress
-
-- stable bidirectional intervention mapping;
-- causal affected-region estimation;
-- video-level localized regeneration;
-- trajectory preservation;
-- identity preservation;
-- locality-aware evaluation.
-
----
-
-## Data Strategy
-
-The project primarily uses **synthetic physics-controlled videos** generated with tools such as Blender / PyBullet-style simulation pipelines.
-
-Synthetic data is preferred for supervision because the underlying physical state and intervention are explicitly known.
-
-Each sample can conceptually contain:
-
-```text
-video
-state_before
-action
-state_after
-affected_region
-counterfactual / alternative action
-```
-
-Real videos are intended mainly for **generalization evaluation** after control learning is stable.
-
----
-
-## Counterfactual Design
-
-Counterfactual supervision is constructed by changing the action while keeping the initial state as fixed as possible.
-
-Example:
-
-```text
-same S_t
- ├── A_1 → S_{t+1}^{(1)}
- ├── A_2 → S_{t+1}^{(2)}
- └── no-op → S_{t+1}^{(0)}
-```
-
-This provides supervision for learning whether different interventions create distinct and physically meaningful control directions.
-
----
-
-## Evaluation
-
-The final video-level evaluation is designed around four groups of metrics:
-
-### Physical Consistency
-
-- state-transition error
-- trajectory deviation
-- drift accumulation
-
-### Control
-
-- action-to-state consistency
-- intervention-direction separability
-- bidirectional mapping consistency
-
-### Locality
-
-- changed pixels inside target region
-- changed pixels outside target region
-- locality ratio
-
-### Visual Preservation
-
-- identity consistency
-- background preservation
-- temporal continuity
-
----
-
-## Planned Repository Structure
-
-```text
-Physics-Aware-Video-Generation/
-├── state_extractor/
-├── drift_checker/
-├── state_compiler/
-├── pcca/
-├── regeneration/
-├── evaluation/
-├── configs/
-├── scripts/
-├── assets/
-└── README.md
-```
-
-The code will be organized around the above modules as the public release matures.
-
----
-
-## Research Goal
-
-The project aims to progress from:
-
-```text
-latent-level control consistency
-```
-
-to:
-
-```text
-stable video-level bidirectional intervention mapping
-                +
-locality-aware regeneration
-```
-
-The final goal is a video generation system in which **physical interventions are controllable, interpretable, and spatially localized**.
-
----
-
-## Status
-
-**Research in progress.**
-
-This repository currently serves as the project page and will be expanded with code, experiments, visualizations, and checkpoints as the implementation is consolidated.
+The historical GitHub README described an earlier latent-only stage and is now superseded by this dated status. The actual private RigidBench runtime and video data are **not** being represented as present in this repository. Source-only K3 CPU examples, benchmark tooling, trained weights and licenses require separate verified releases. Please do not use internal oracle diagnostic results as comparable external benchmark scores.
